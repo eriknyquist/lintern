@@ -1,16 +1,107 @@
 from clang.cindex import TokenKind
 
 from lintern.cfile import (
-        CodeRewriteRule, original_text_from_tokens, find_statement_beginning,
-        builtin_signed_type_names, builtin_unsigned_type_names,
-        builtin_type_names
+        CodeRewriteRule, CodeChunkReplacement, original_text_from_tokens,
+        find_statement_beginning, builtin_signed_type_names, builtin_unsigned_type_names,
+        builtin_type_names, default_value_for_type
 )
+
+
+class InitializeCanonicalsRule(CodeRewriteRule):
+    """
+    This rule rewrites declarations of canonical data types that have no initial
+    value, and adds a sane initial value.
+
+    For example:
+
+        volatile float x;
+        static const bool y;
+
+    Becomes:
+
+        volatile float x = 0.0f;
+        static const bool y = false;
+
+    NOTE: This rule does *not* work with multiple declarations in a single
+    statement, so the OneInitPerLineRule *must* run before this one.
+    """
+    STATE_START = 0
+    STATE_ID = 1
+    STATE_END = 2
+
+    def __init__(self):
+        super(InitializeCanonicalsRule, self).__init__()
+        self.state = self.STATE_START
+        self.tokens = 0
+
+    def replacement_code(self, tokens, text):
+        subtoks = tokens[self.start_index:self.end_index + 1]
+        typename = subtoks[0].spelling
+
+        if typename == 'unsigned':
+            if subtoks[1].kind == TokenKind.KEYWORD:
+                typename = '%s %s' % (typename, subtoks[1].spelling)
+
+        firsttok = find_statement_beginning(tokens, self.start_index)
+        fulltype = text[firsttok.extent.start.offset:subtoks[0].extent.start.offset] + typename
+
+        origtext = original_text_from_tokens(subtoks[:-1], text)
+        typeval = default_value_for_type(typename)
+        newtext = "%s = %s;" % (origtext, typeval)
+
+        ret = CodeChunkReplacement(self.start_index,
+                                   subtoks[0].extent.start.offset,
+                                   subtoks[-1].extent.end.offset,
+                                   newtext)
+        return ret
+
+    def consume_token(self, index, tokens, text):
+        token = tokens[index]
+        ret = None
+
+        if self.state == self.STATE_START:
+            self.tokens = 0
+
+            if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
+                self.start_index = index
+                self.state = self.STATE_ID
+
+        elif self.state == self.STATE_ID:
+            if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
+                pass
+            elif token.kind == TokenKind.IDENTIFIER:
+                self.state = self.STATE_END
+            elif token.kind == TokenKind.PUNCTUATION:
+                if token.spelling != "*":
+                    self.state = self.STATE_START
+            elif token.kind == TokenKind.KEYWORD:
+                if token.spelling not in ['const', 'volatile']:
+                    self.state = self.STATE_START
+            else:
+                self.state = self.STATE_START
+
+        elif self.state == self.STATE_END:
+            self.state = self.STATE_START
+            if token.kind == TokenKind.PUNCTUATION:
+                if token.spelling == ';':
+                    self.end_index = index
+                    self.state = self.STATE_START
+                    return self.replacement_code(tokens, text)
+
+                elif token.spelling in ['=', ',']:
+                    self.state = self.STATE_START
+
+        if (self.state != self.STATE_START):
+            self.tokens += 1
+
+        return ret
 
 
 class OneInitPerLineRule(CodeRewriteRule):
     """
-    This rule rewrites a line that declares & initializes multiple values in a single
-    statement, to separate each declaration + initialization on its own line.
+    This rule rewrites lines that declare & initialize multiple values in a single
+    statement, to separate each declaration + initialization on its own line and
+    statement.
 
     For example:
 
@@ -40,8 +131,12 @@ class OneInitPerLineRule(CodeRewriteRule):
         subtoks = tokens[self.start_index:self.end_index + 1]
         typename = subtoks[0].spelling
 
+        if typename == 'unsigned':
+            if subtoks[1].kind == TokenKind.KEYWORD:
+                typename = '%s %s' % (typename, subtoks[1].spelling)
+
         firsttok = find_statement_beginning(tokens, self.start_index)
-        typename = text[firsttok.offset:subtoks[0].extent.end.offset]
+        fulltype = text[firsttok.extent.start.offset:subtoks[0].extent.start.offset] + typename
 
         # Group tokens between commas, starting from the first ID
         groups = []
@@ -57,9 +152,15 @@ class OneInitPerLineRule(CodeRewriteRule):
         lines = []
         for g in groups:
             origtext = original_text_from_tokens(g, text)
-            lines.append("%s %s;" % (typename, origtext))
+            lines.append("%s %s;" % (fulltype, origtext))
 
-        ret = "\n".join(lines)
+        indent = " " * (firsttok.extent.start.column - 1)
+        newtext = ("\n%s" % indent).join(lines)
+
+        ret = CodeChunkReplacement(self.start_index,
+                                   firsttok.extent.start.offset,
+                                   subtoks[-1].extent.end.offset,
+                                   newtext)
         return ret
 
     def consume_token(self, index, tokens, text):
@@ -74,7 +175,9 @@ class OneInitPerLineRule(CodeRewriteRule):
                 self.state = self.STATE_ID
 
         elif self.state == self.STATE_ID:
-            if token.kind == TokenKind.IDENTIFIER:
+            if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
+                pass
+            elif token.kind == TokenKind.IDENTIFIER:
                 self.state = self.STATE_EQUALS
             elif token.kind == TokenKind.PUNCTUATION:
                 if token.spelling != "*":
@@ -89,9 +192,9 @@ class OneInitPerLineRule(CodeRewriteRule):
             if token.kind == TokenKind.PUNCTUATION:
                 if token.spelling == '=':
                     self.state = self.STATE_VALUES
-                elif token.spelling != '*':
-                    self.state = self.STATE_START
-
+                elif token.spelling == ',':
+                    self.commas += 1
+                    self.state = self.STATE_VALUES
             else:
                 self.state = self.STATE_START
 
