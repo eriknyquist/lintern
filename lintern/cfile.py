@@ -9,11 +9,31 @@ builtin_unsigned_type_names = [
 
 builtin_signed_type_names = [
     'int', 'int8_t', 'int16_t', 'int32_t', 'int64_t', 'short', 'long', 'long long',
-    'char', 'bool'
+    'char', 'bool', 'float', 'double'
 ]
 
 
 builtin_type_names = builtin_signed_type_names + builtin_unsigned_type_names
+
+
+def find_statement_beginning(tokenlist, index):
+    i = index
+
+    while i > 0:
+        t = tokenlist[i]
+        if t.kind == TokenKind.PUNCTUATION:
+            if (i < index) and (t.spelling in ['{', '}', ';']):
+                return tokenlist[i + 1].extent.start
+
+        i -= 1
+
+    return None
+
+
+def original_text_from_tokens(tokenlist, text):
+    start = tokenlist[0].extent.start.offset
+    end = tokenlist[-1].extent.end.offset
+    return text[start:end]
 
 
 class CodeChunkReplacement(object):
@@ -27,6 +47,9 @@ class CodeRewriteRule(object):
     def __init__(self):
         self.start_index = 0
         self.end_index = 0
+
+    def tokens_buffered(self):
+        raise NotImplementedError()
 
     def consume_token(self, index, token, text):
         raise NotImplementedError()
