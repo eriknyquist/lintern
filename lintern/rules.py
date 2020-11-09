@@ -1,10 +1,58 @@
-from clang.cindex import TokenKind
+from clang.cindex import TokenKind, CursorKind
 
 from lintern.cfile import (
         CodeRewriteRule, CodeChunkReplacement, original_text_from_tokens,
         find_statement_beginning, builtin_signed_type_names, builtin_unsigned_type_names,
         builtin_type_names, default_value_for_type
 )
+
+
+class PrototypeFunctionDeclsRule(CodeRewriteRule):
+    """
+    This rule rewrites function declarations and implementations with no function
+    parameters, to ensure 'void' is used in place of function parameters.
+
+    For example:
+
+        void function();
+
+    Becomes:
+
+        void function(void);
+    """
+    def __init__(self):
+        super(PrototypeFunctionDeclsRule, self).__init__()
+        self.tokens = 0
+
+    def consume_token(self, index, tokens, text):
+        token = tokens[index]
+        if token.cursor.kind == CursorKind.FUNCTION_DECL:
+            decl_toks = [t for t in token.cursor.get_tokens()]
+
+            end_index = None
+            for i in range(len(decl_toks)):
+                t = decl_toks[i]
+                if (t.kind == TokenKind.PUNCTUATION) and (t.spelling == ')'):
+                    end_index = i + 1
+
+            if end_index is None:
+                return
+
+            decl_toks = decl_toks[:end_index]
+            if decl_toks[-2].kind != TokenKind.PUNCTUATION:
+                return None
+
+            if decl_toks[-2].spelling != "(":
+                return None
+
+            newtext = original_text_from_tokens(decl_toks[:-1], text)
+            newtext += "void)"
+
+            ret = CodeChunkReplacement(index,
+                                       decl_toks[0].extent.start.offset,
+                                       decl_toks[-1].extent.end.offset,
+                                       newtext)
+            return ret
 
 
 class InitializeCanonicalsRule(CodeRewriteRule):

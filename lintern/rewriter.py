@@ -4,6 +4,7 @@ from lintern.cfile import CFile
 
 class CodeRewriter(object):
     rewrite_rules = [
+        rules.PrototypeFunctionDeclsRule(),
         rules.OneInitPerLineRule(),
         rules.InitializeCanonicalsRule()
     ]
@@ -19,7 +20,7 @@ class CodeRewriter(object):
         for r in self.rewrite_rules:
             i = 0
             while i < len(tokens):
-                print(tokens[i].kind, tokens[i].spelling)
+                #print(tokens[i].kind, tokens[i].spelling)
                 ret = r.consume_token(i, tokens, cf.text)
                 if ret is None:
                     i += 1
