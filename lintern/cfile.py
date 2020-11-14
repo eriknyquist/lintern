@@ -16,6 +16,11 @@ builtin_signed_type_names = [
 builtin_type_names = builtin_signed_type_names + builtin_unsigned_type_names
 
 
+def get_configured_indent(config):
+    indentchar = ' ' if config.indent_type == 'space' else '\t'
+    return indentchar * config.indent_level
+
+
 def get_line_indent(token, text):
     i = token.extent.start.offset
     ret = ""
