@@ -16,6 +16,21 @@ builtin_signed_type_names = [
 builtin_type_names = builtin_signed_type_names + builtin_unsigned_type_names
 
 
+def get_line_indent(token, text):
+    i = token.extent.start.offset
+    ret = ""
+
+    while (i >= 0) and (text[i] != '\n'):
+        if text[i] in [' ', '\t', '\v']:
+            ret = text[i] + ret
+        else:
+            ret = ""
+
+        i -= 1
+
+    return ret
+
+
 def default_value_for_type(typename):
     if typename not in builtin_type_names:
         return None
@@ -73,7 +88,7 @@ class CodeRewriteRule(object):
     def tokens_buffered(self):
         raise NotImplementedError()
 
-    def consume_token(self, index, token, text):
+    def consume_token(self, rewriter, index, token, text):
         raise NotImplementedError()
 
 

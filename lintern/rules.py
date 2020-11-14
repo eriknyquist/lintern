@@ -3,8 +3,114 @@ from clang.cindex import TokenKind, CursorKind
 from lintern.cfile import (
         CodeRewriteRule, CodeChunkReplacement, original_text_from_tokens,
         find_statement_beginning, builtin_signed_type_names, builtin_unsigned_type_names,
-        builtin_type_names, default_value_for_type
+        builtin_type_names, default_value_for_type, get_line_indent
 )
+
+
+class BracesForCodeBlocksRule(CodeRewriteRule):
+    """
+    This rule rewrites code blocks following if/else, for, while and do/while statements,
+    ensuring that they are surrounded by curly braces.
+
+    For example:
+
+        if (check1())
+           func1();
+        else if (check2())
+            func2();
+
+    Becomes:
+
+        if (check1())
+        {
+           func1();
+        }
+        else if (check2())
+        {
+            func2();
+        }
+    """
+    def __init__(self):
+        super(BracesForCodeBlocksRule, self).__init__()
+        self.tokens = 0
+        self.last_cursor_kind = None
+
+    def rewrite_if_stmt(self, rewriter, index, tokens, text):
+        toks = list(tokens[index].cursor.get_tokens())
+
+    def rewrite_do_stmt(self, rewriter, index, tokens, text):
+        toks = list(tokens[index].cursor.get_tokens())
+
+    def rewrite_while_stmt(self, rewriter, index, tokens, text):
+        if self.last_cursor_kind == CursorKind.DO_STMT:
+            # This is the 'while' part of a do-while statement, no braces to add
+            return None
+
+        toks = list(tokens[index].cursor.get_tokens())
+        if toks[-1].spelling != ';':
+            nexttok = tokens[index + len(toks)]
+            if (nexttok.kind == TokenKind.PUNCTUATION) and (nexttok.spelling == ';'):
+                toks.append(nexttok)
+
+        start_index = None
+        paren_depth = 0
+
+        print(' '.join([t.spelling for t in toks]))
+
+        # Find the closing paren. of while statement
+        for i in range(len(toks)):
+            token = toks[i]
+            if (token.kind == TokenKind.PUNCTUATION) and (token.spelling == '('):
+                paren_depth += 1
+            elif (token.kind == TokenKind.PUNCTUATION) and (token.spelling == ')'):
+                paren_depth -= 1
+
+                if paren_depth == 0:
+                    start_index = i + 1
+                    break
+
+        if start_index is None:
+            return None
+
+        if toks[start_index].kind == TokenKind.PUNCTUATION:
+            if toks[start_index].spelling == '{':
+                # While statement is already using braces.
+                return None
+
+        origindent = get_line_indent(toks[0], text)
+        indentchar = ' ' if rewriter.config.indent_type == 'space' else '\t'
+        indent = indentchar * rewriter.config.indent_level
+
+        newtext = original_text_from_tokens(toks[:start_index], text)
+        newtext += "\n" + origindent + "{"
+        newtext += "\n" + (origindent + indent) + original_text_from_tokens(toks[start_index:], text)
+        newtext += "\n" + origindent + "}"
+
+        ret = CodeChunkReplacement(index,
+                                   toks[0].extent.start.offset,
+                                   toks[-1].extent.end.offset,
+                                   newtext)
+
+        return ret
+
+    def consume_token(self, rewriter, index, tokens, text):
+        token = tokens[index]
+        ret = None
+
+        if token.cursor.kind == CursorKind.IF_STMT:
+            ret = self.rewrite_if_stmt(rewriter, index, tokens, text)
+
+        elif token.cursor.kind == CursorKind.DO_STMT:
+            ret = self.rewrite_do_stmt(rewriter, index, tokens, text)
+
+        elif token.cursor.kind == CursorKind.WHILE_STMT:
+            ret = self.rewrite_while_stmt(rewriter, index, tokens, text)
+
+        elif token.cursor.kind == CursorKind.FOR_STMT:
+            ret = self.rewrite_for_stmt(rewriter, index, tokens, text)
+
+        self.last_cursor_kind = token.cursor.kind
+        return ret
 
 
 class PrototypeFunctionDeclsRule(CodeRewriteRule):
@@ -24,7 +130,7 @@ class PrototypeFunctionDeclsRule(CodeRewriteRule):
         super(PrototypeFunctionDeclsRule, self).__init__()
         self.tokens = 0
 
-    def consume_token(self, index, tokens, text):
+    def consume_token(self, rewriter, index, tokens, text):
         token = tokens[index]
         if token.cursor.kind == CursorKind.FUNCTION_DECL:
             decl_toks = [t for t in token.cursor.get_tokens()]
@@ -103,7 +209,7 @@ class InitializeCanonicalsRule(CodeRewriteRule):
                                    newtext)
         return ret
 
-    def consume_token(self, index, tokens, text):
+    def consume_token(self, rewriter, index, tokens, text):
         token = tokens[index]
         ret = None
 
@@ -202,7 +308,7 @@ class OneInitPerLineRule(CodeRewriteRule):
             origtext = original_text_from_tokens(g, text)
             lines.append("%s %s;" % (fulltype, origtext))
 
-        indent = " " * (firsttok.extent.start.column - 1)
+        indent = get_line_indent(firsttok, text)
         newtext = ("\n%s" % indent).join(lines)
 
         ret = CodeChunkReplacement(self.start_index,
@@ -211,7 +317,7 @@ class OneInitPerLineRule(CodeRewriteRule):
                                    newtext)
         return ret
 
-    def consume_token(self, index, tokens, text):
+    def consume_token(self, rewriter, index, tokens, text):
         token = tokens[index]
         ret = None
 
