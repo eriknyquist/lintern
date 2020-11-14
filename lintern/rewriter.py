@@ -7,10 +7,10 @@ import argparse
 
 class CodeRewriter(object):
     rewrite_rules = [
-        rules.BracesForCodeBlocksRule(),
-        rules.PrototypeFunctionDeclsRule(),
-        rules.OneInitPerLineRule(),
-        rules.InitializeCanonicalsRule()
+        rules.BracesAroundCodeBlocks(),
+        rules.PrototypeFunctionDeclarations(),
+        rules.OneDeclarationPerLine(),
+        rules.InitializeCanonicals()
     ]
 
     def __init__(self, config):

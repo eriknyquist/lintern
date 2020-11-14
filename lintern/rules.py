@@ -7,10 +7,10 @@ from lintern.cfile import (
 )
 
 
-class BracesForCodeBlocksRule(CodeRewriteRule):
+class BracesAroundCodeBlocks(CodeRewriteRule):
     """
     This rule rewrites code blocks following if/else, for, while and do/while statements,
-    ensuring that they are surrounded by curly braces.
+    ensuring that they are surrounded by braces.
 
     For example:
 
@@ -31,7 +31,7 @@ class BracesForCodeBlocksRule(CodeRewriteRule):
         }
     """
     def __init__(self):
-        super(BracesForCodeBlocksRule, self).__init__()
+        super(BracesAroundCodeBlocks, self).__init__()
         self.tokens = 0
         self.last_cursor_kind = None
 
@@ -154,7 +154,7 @@ class BracesForCodeBlocksRule(CodeRewriteRule):
         return ret
 
 
-class PrototypeFunctionDeclsRule(CodeRewriteRule):
+class PrototypeFunctionDeclarations(CodeRewriteRule):
     """
     This rule rewrites function declarations and implementations with no function
     parameters, to ensure 'void' is used in place of function parameters.
@@ -168,7 +168,7 @@ class PrototypeFunctionDeclsRule(CodeRewriteRule):
         void function(void);
     """
     def __init__(self):
-        super(PrototypeFunctionDeclsRule, self).__init__()
+        super(PrototypeFunctionDeclarations, self).__init__()
         self.tokens = 0
 
     def consume_token(self, rewriter, index, tokens, text):
@@ -202,7 +202,7 @@ class PrototypeFunctionDeclsRule(CodeRewriteRule):
             return ret
 
 
-class InitializeCanonicalsRule(CodeRewriteRule):
+class InitializeCanonicals(CodeRewriteRule):
     """
     This rule rewrites declarations of canonical data types that have no initial
     value, and adds a sane initial value.
@@ -225,7 +225,7 @@ class InitializeCanonicalsRule(CodeRewriteRule):
     STATE_END = 2
 
     def __init__(self):
-        super(InitializeCanonicalsRule, self).__init__()
+        super(InitializeCanonicals, self).__init__()
         self.state = self.STATE_START
         self.tokens = 0
 
@@ -298,7 +298,7 @@ class InitializeCanonicalsRule(CodeRewriteRule):
         return ret
 
 
-class OneInitPerLineRule(CodeRewriteRule):
+class OneDeclarationPerLine(CodeRewriteRule):
     """
     This rule rewrites lines that declare & initialize multiple values in a single
     statement, to separate each declaration + initialization on its own line and
@@ -320,7 +320,7 @@ class OneInitPerLineRule(CodeRewriteRule):
     STATE_VALUES = 3
 
     def __init__(self):
-        super(OneInitPerLineRule, self).__init__()
+        super(OneDeclarationPerLine, self).__init__()
         self.state = self.STATE_START
         self.commas = 0
         self.tokens = 0
