@@ -241,7 +241,7 @@ class InitializeCanonicalsRule(CodeRewriteRule):
         fulltype = text[firsttok.extent.start.offset:subtoks[0].extent.start.offset] + typename
 
         origtext = original_text_from_tokens(subtoks[:-1], text)
-        typeval = default_value_for_type(typename)
+        typeval = 'NULL' if self.is_pointer else default_value_for_type(typename)
         newtext = "%s = %s;" % (origtext, typeval)
 
         ret = CodeChunkReplacement(self.start_index,
@@ -256,6 +256,7 @@ class InitializeCanonicalsRule(CodeRewriteRule):
 
         if self.state == self.STATE_START:
             self.tokens = 0
+            self.is_pointer = False
 
             if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
                 self.start_index = index
@@ -264,11 +265,16 @@ class InitializeCanonicalsRule(CodeRewriteRule):
         elif self.state == self.STATE_ID:
             if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
                 pass
+
             elif token.kind == TokenKind.IDENTIFIER:
                 self.state = self.STATE_END
+
             elif token.kind == TokenKind.PUNCTUATION:
-                if token.spelling != "*":
+                if token.spelling == "*":
+                    self.is_pointer = True
+                else:
                     self.state = self.STATE_START
+
             elif token.kind == TokenKind.KEYWORD:
                 if token.spelling not in ['const', 'volatile']:
                     self.state = self.STATE_START

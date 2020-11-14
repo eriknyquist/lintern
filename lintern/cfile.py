@@ -100,6 +100,7 @@ class CodeRewriteRule(object):
 class CFile(object):
     def __init__(self, filename):
         self.text = None
+        self.filename = filename
 
         with open(filename, 'r') as fh:
             self.text = fh.read()
