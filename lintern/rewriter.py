@@ -5,14 +5,14 @@ from lintern.cfile import CFile
 import argparse
 
 
-class CodeRewriter(object):
-    rewrite_rules = [
-        rules.BracesAroundCodeBlocks(),
-        rules.PrototypeFunctionDeclarations(),
-        rules.OneDeclarationPerLine(),
-        rules.InitializeCanonicals()
-    ]
+rewrite_rules = [
+    rules.BracesAroundCodeBlocks(),
+    rules.PrototypeFunctionDeclarations(),
+    rules.OneDeclarationPerLine(),
+    rules.InitializeCanonicals()
+]
 
+class CodeRewriter(object):
     def __init__(self, config):
         self.config = config
         self.files = [CFile(f) for f in config.filename]
@@ -22,7 +22,7 @@ class CodeRewriter(object):
         i = 0
         restart = False
 
-        for r in self.rewrite_rules:
+        for r in rewrite_rules:
             i = 0
             while i < len(tokens):
                 ret = r.consume_token(self, i, tokens, cf.text)

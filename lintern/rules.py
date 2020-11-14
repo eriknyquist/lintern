@@ -14,12 +14,16 @@ class BracesAroundCodeBlocks(CodeRewriteRule):
 
     For example:
 
+    ::
+
         if (check1())
            func1();
         else if (check2())
             func2();
 
     Becomes:
+
+    ::
 
         if (check1())
         {
@@ -161,9 +165,13 @@ class PrototypeFunctionDeclarations(CodeRewriteRule):
 
     For example:
 
+    ::
+
         void function();
 
     Becomes:
+
+    ::
 
         void function(void);
     """
@@ -209,16 +217,19 @@ class InitializeCanonicals(CodeRewriteRule):
 
     For example:
 
+    ::
+
         volatile float x;
         static const bool y;
+        short *z;
 
     Becomes:
 
+    ::
+
         volatile float x = 0.0f;
         static const bool y = false;
-
-    NOTE: This rule does *not* work with multiple declarations in a single
-    statement, so the OneInitPerLineRule *must* run before this one.
+        short *z = NULL;
     """
     STATE_START = 0
     STATE_ID = 1
@@ -306,9 +317,13 @@ class OneDeclarationPerLine(CodeRewriteRule):
 
     For example:
 
+    ::
+
        static const int a = 2, *b = NULL, **c = NULL;
 
     Becomes:
+
+    ::
 
         static const int a = 2;
         static const int *b = NULL;
