@@ -1,8 +1,5 @@
-import sys
 from lintern import rules
 from lintern.cfile import CFile
-
-import argparse
 
 
 rewrite_rules = [
@@ -49,26 +46,3 @@ class CodeRewriter(object):
                     fh.write(new_file_content)
             else:
                 print(new_file_content)
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--indent-type', default='space', dest='indent_type',
-                        choices=['space', 'tab'], help="Set the type of indentation to be used")
-    parser.add_argument('-l', '--indent-level', default=4, dest='indent_level',
-                        help="Set the number of characters to use for a single indent level")
-    parser.add_argument('-i', '--in-place', action='store_true', dest='in_place',
-                        help="Re-write files in place. Default behaviour is to print"
-                        "modified files to stdout.")
-    parser.add_argument('filename', nargs='*')
-    args = parser.parse_args()
-
-    if not args.filename:
-        print("Please provide one or more input filenames.")
-        return 1
-
-    r = CodeRewriter(args)
-    r.rewrite()
-    return 0
-
-if __name__ == "__main__":
-    sys.exit(main())
