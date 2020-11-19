@@ -16,6 +16,48 @@ builtin_signed_type_names = [
 builtin_type_names = builtin_signed_type_names + builtin_unsigned_type_names
 
 
+def find_next_toplevel_semicolon_index(tokens):
+    end_index = None
+    depth = 0
+    for i in range(len(tokens)):
+        tok = tokens[i]
+
+        if tok.kind == TokenKind.PUNCTUATION:
+            if tok.spelling == '(':
+                depth += 1
+            elif tok.spelling == ')':
+                depth -= 1
+            elif (depth == 0) and (tok.spelling == ';'):
+                end_index = i + 1
+                break
+
+    return end_index
+
+
+def find_last_matching_char(toks, pair=['(', ')']):
+    paren_depth = 0
+
+    for i in range(len(toks)):
+        token = toks[i]
+        if (token.kind == TokenKind.PUNCTUATION) and (token.spelling == pair[0]):
+            paren_depth += 1
+        elif (token.kind == TokenKind.PUNCTUATION) and (token.spelling == pair[1]):
+            paren_depth -= 1
+
+            if paren_depth == 0:
+                return i + 1
+
+    return None
+
+
+def find_last_matching_rparen(toks):
+    return find_last_matching_char(toks, pair=['(', ')'])
+
+
+def find_last_matching_rbrace(toks):
+    return find_last_matching_char(toks, pair=['{', '}'])
+
+
 def get_configured_indent(config):
     indentchar = ' ' if config.indent_type == 'space' else '\t'
     return indentchar * config.indent_level

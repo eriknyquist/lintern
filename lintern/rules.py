@@ -3,7 +3,8 @@ from clang.cindex import TokenKind, CursorKind
 from lintern.cfile import (
         CodeRewriteRule, CodeChunkReplacement, original_text_from_tokens,
         find_statement_beginning, builtin_signed_type_names, builtin_unsigned_type_names,
-        builtin_type_names, default_value_for_type, get_line_indent, get_configured_indent
+        builtin_type_names, default_value_for_type, get_line_indent, get_configured_indent,
+        find_last_matching_rparen, find_last_matching_rbrace, find_next_toplevel_semicolon_index
 )
 
 
@@ -41,57 +42,43 @@ class BracesAroundCodeBlocks(CodeRewriteRule):
 
     def _add_semicolon_if_required(self, index, tokens, subtoks):
         if (subtoks[-1].kind != TokenKind.PUNCTUATION) or (subtoks[-1].spelling != ';'):
-            nexttok = tokens[index + len(subtoks)]
-            if (nexttok.kind == TokenKind.PUNCTUATION) and (nexttok.spelling == ';'):
-                subtoks.append(nexttok)
-
-    def _find_last_rparen_index(self, subtoks):
-        paren_depth = 0
-
-        for i in range(len(subtoks)):
-            token = subtoks[i]
-            if (token.kind == TokenKind.PUNCTUATION) and (token.spelling == '('):
-                paren_depth += 1
-            elif (token.kind == TokenKind.PUNCTUATION) and (token.spelling == ')'):
-                paren_depth -= 1
-
-                if paren_depth == 0:
-                    return i + 1
-
-        return None
+            if (index + len(subtoks)) < len(tokens):
+                nexttok = tokens[index + len(subtoks)]
+                if (nexttok.kind == TokenKind.PUNCTUATION) and (nexttok.spelling == ';'):
+                    subtoks.append(nexttok)
 
     def _code_block_after_conditional(self, rewriter, index, tokens, text):
-        toks = list(tokens[index].cursor.get_tokens())
-        self._add_semicolon_if_required(index, tokens, toks)
-
         # Find the closing paren. of conditional statement
-        start_index = self._find_last_rparen_index(toks)
+        start_index = find_last_matching_rparen(tokens)
 
         if start_index is None:
             return None
 
-        if toks[start_index].kind == TokenKind.PUNCTUATION:
-            if toks[start_index].spelling == '{':
+        if tokens[start_index].kind == TokenKind.PUNCTUATION:
+            if tokens[start_index].spelling == '{':
                 # Statement is already using braces.
                 return None
 
-        origindent = get_line_indent(toks[0], text)
+        end_index = find_next_toplevel_semicolon_index(tokens)
+        if end_index is None:
+            return None
+
+        tokens = tokens[:end_index]
+        origindent = get_line_indent(tokens[0], text)
         indent = get_configured_indent(rewriter.config)
 
-        newtext = original_text_from_tokens(toks[:start_index], text)
+        newtext = original_text_from_tokens(tokens[:start_index], text)
         newtext += "\n" + origindent + "{"
-        newtext += "\n" + (origindent + indent) + original_text_from_tokens(toks[start_index:], text)
+        newtext += "\n" + (origindent + indent) + original_text_from_tokens(tokens[start_index:], text)
         newtext += "\n" + origindent + "}"
 
+
         ret = CodeChunkReplacement(index,
-                                   toks[0].extent.start.offset,
-                                   toks[-1].extent.end.offset,
+                                   tokens[0].extent.start.offset,
+                                   tokens[-1].extent.end.offset,
                                    newtext)
 
         return ret
-
-    def rewrite_if_stmt(self, rewriter, index, tokens, text):
-        toks = list(tokens[index].cursor.get_tokens())
 
     def rewrite_do_stmt(self, rewriter, index, tokens, text):
         toks = list(tokens[index].cursor.get_tokens())
@@ -133,19 +120,70 @@ class BracesAroundCodeBlocks(CodeRewriteRule):
             # This is the 'while' part of a do-while statement, no braces to add
             return None
 
-        return self._code_block_after_conditional(rewriter, index, tokens, text)
+        toks = list(tokens[index].cursor.get_tokens())
+        self._add_semicolon_if_required(index, tokens, toks)
+        return self._code_block_after_conditional(rewriter, index, toks, text)
 
     def rewrite_for_stmt(self, rewriter, index, tokens, text):
-        return self._code_block_after_conditional(rewriter, index, tokens, text)
+        toks = list(tokens[index].cursor.get_tokens())
+        self._add_semicolon_if_required(index, tokens, toks)
+        return self._code_block_after_conditional(rewriter, index, toks, text)
+
+    def check_rewrite_ifelse_stmt(self, rewriter, index, tokens, text):
+        tok = tokens[index]
+        if tok.kind != TokenKind.KEYWORD:
+            return None
+
+        if tok.spelling == 'if':
+            return self._code_block_after_conditional(rewriter, index, tokens[index:], text)
+        elif tok.spelling == 'else':
+            if index < (len(tokens) - 1):
+                if ((tokens[index + 1].kind == TokenKind.KEYWORD) and
+                    (tokens[index + 1].spelling == 'if')):
+                    return self._code_block_after_conditional(rewriter, index, tokens[index:], text)
+
+                elif ((tokens[index + 1].kind == TokenKind.PUNCTUATION) and
+                      (tokens[index + 1].spelling == '{')):
+                    # Statement is already using braces
+                    return None
+
+                else:
+                    toks = tokens[index:]
+                    end_index = find_next_toplevel_semicolon_index(toks)
+                    if end_index is None:
+                        return None
+
+                    #import pdb
+                    #pdb.set_trace()
+
+                    toks = toks[:end_index]
+
+                    origindent = get_line_indent(toks[0], text)
+                    indent = get_configured_indent(rewriter.config)
+
+                    newtext = toks[0].spelling
+                    newtext += "\n" + origindent + "{"
+                    newtext += ("\n" + (origindent + indent) +
+                                original_text_from_tokens(toks[1:], text))
+                    newtext += "\n" + origindent + "}"
+
+                    ret = CodeChunkReplacement(index,
+                                               toks[0].extent.start.offset,
+                                               toks[-1].extent.end.offset,
+                                               newtext)
+                    return ret
+
+        return None
 
     def consume_token(self, rewriter, index, tokens, text):
         token = tokens[index]
         ret = None
 
-        if token.cursor.kind == CursorKind.IF_STMT:
-            ret = self.rewrite_if_stmt(rewriter, index, tokens, text)
+        ret = self.check_rewrite_ifelse_stmt(rewriter, index, tokens, text)
+        if ret:
+            return ret
 
-        elif token.cursor.kind == CursorKind.DO_STMT:
+        if token.cursor.kind == CursorKind.DO_STMT:
             ret = self.rewrite_do_stmt(rewriter, index, tokens, text)
 
         elif token.cursor.kind == CursorKind.WHILE_STMT:
@@ -387,8 +425,9 @@ class OneDeclarationPerLine(CodeRewriteRule):
             self.tokens = 0
 
             if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
-                self.start_index = index
-                self.state = self.STATE_ID
+                if token.cursor.kind != CursorKind.PARM_DECL:
+                    self.start_index = index
+                    self.state = self.STATE_ID
 
         elif self.state == self.STATE_ID:
             if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
