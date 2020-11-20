@@ -10,16 +10,23 @@ rewrite_rules = [
 ]
 
 class CodeRewriter(object):
-    def __init__(self, config):
-        self.config = config
-        self.files = [CFile(f) for f in config.filename]
+    def __init__(self, args, config_data):
+        self.config = args
+        self.files = [CFile(f) for f in args.filename]
+        self.rules = []
+
+        # Build list of rules that are enabled in the config file
+        for r in rewrite_rules:
+            name = r.__class__.__name__
+            if (name in config_data) and (config_data[name] == True):
+                self.rules.append(r)
 
     def _rewrite_file(self, cf):
         tokens = cf.tokens()
         i = 0
         restart = False
 
-        for r in rewrite_rules:
+        for r in self.rules:
             i = 0
             while i < len(tokens):
                 ret = r.consume_token(self, i, tokens, cf.text)
