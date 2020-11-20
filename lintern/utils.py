@@ -16,10 +16,12 @@ builtin_signed_type_names = [
 builtin_type_names = builtin_signed_type_names + builtin_unsigned_type_names
 
 
-def find_next_toplevel_semicolon_index(tokens):
+def find_next_toplevel_semicolon_index(tokens, index=0):
     end_index = None
     depth = 0
-    for i in range(len(tokens)):
+    i = index
+
+    while i < len(tokens):
         tok = tokens[i]
 
         if tok.kind == TokenKind.PUNCTUATION:
@@ -28,8 +30,10 @@ def find_next_toplevel_semicolon_index(tokens):
             elif tok.spelling == ')':
                 depth -= 1
             elif (depth == 0) and (tok.spelling == ';'):
-                end_index = i + 1
+                end_index = i
                 break
+
+        i += 1
 
     return end_index
 
@@ -96,17 +100,17 @@ def default_value_for_type(typename):
     return '0'
 
 
-def find_statement_beginning(tokenlist, index):
+def find_statement_beginning_index(tokenlist, index):
     i = index
 
     while i > 0:
         t = tokenlist[i]
         if (i < index) and (t.kind == TokenKind.COMMENT):
-            return tokenlist[i + 1]
+            return i + 1
 
         elif t.kind == TokenKind.PUNCTUATION:
             if (i < index) and (t.spelling in ['{', '}', ';']):
-                return tokenlist[i + 1]
+                return i + 1
 
         i -= 1
 

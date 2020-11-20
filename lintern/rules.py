@@ -2,9 +2,9 @@ from clang.cindex import TokenKind, CursorKind
 
 from lintern.cfile import CodeRewriteRule, CodeChunkReplacement
 from lintern.utils import (
-        original_text_from_tokens, find_statement_beginning, builtin_signed_type_names,
-        builtin_unsigned_type_names, builtin_type_names, default_value_for_type,
-        get_line_indent, get_configured_indent, find_last_matching_rparen,
+        original_text_from_tokens, find_statement_beginning_index,
+        builtin_signed_type_names, builtin_unsigned_type_names, builtin_type_names,
+        default_value_for_type, get_line_indent, get_configured_indent,find_last_matching_rparen,
         find_last_matching_rbrace, find_next_toplevel_semicolon_index
 )
 
@@ -60,7 +60,7 @@ class BracesAroundCodeBlocks(CodeRewriteRule):
                 # Statement is already using braces.
                 return None
 
-        end_index = find_next_toplevel_semicolon_index(tokens)
+        end_index = find_next_toplevel_semicolon_index(tokens) + 1
         if end_index is None:
             return None
 
@@ -150,7 +150,7 @@ class BracesAroundCodeBlocks(CodeRewriteRule):
 
                 else:
                     toks = tokens[index:]
-                    end_index = find_next_toplevel_semicolon_index(toks)
+                    end_index = find_next_toplevel_semicolon_index(toks) + 1
                     if end_index is None:
                         return None
 
@@ -270,82 +270,88 @@ class InitializeCanonicals(CodeRewriteRule):
         static const bool y = false;
         short *z = NULL;
     """
-    STATE_START = 0
-    STATE_ID = 1
-    STATE_END = 2
+    def rewrite_var_decl(self, rewriter, index, startindex, endindex, tokens, text):
+        varindex = index + 1
+        if tokens[index].spelling == 'unsigned':
+            if tokens[index + 1].spelling in builtin_type_names:
+                varindex += 1
 
-    def __init__(self):
-        super(InitializeCanonicals, self).__init__()
-        self.state = self.STATE_START
-        self.tokens = 0
+        decls_only = tokens[varindex:endindex + 1]
+        toks = tokens[startindex:endindex + 1]
+        decls = []
+        declbuf = []
+        assignments = 0
+        is_pointer = False
+        initialized = False
 
-    def replacement_code(self, tokens, text):
-        subtoks = tokens[self.start_index:self.end_index + 1]
-        typename = subtoks[0].spelling
+        for i in range(len(decls_only)):
+            tok = decls_only[i]
+            if tok.kind == TokenKind.PUNCTUATION:
+                if tok.spelling in [',', ';']:
+                    decls.append((initialized, is_pointer, declbuf))
+                    is_pointer = False
+                    initialized = False
+                    declbuf = []
 
-        if typename == 'unsigned':
-            if subtoks[1].kind == TokenKind.KEYWORD:
-                typename = '%s %s' % (typename, subtoks[1].spelling)
+                elif tok.spelling == '*':
+                    is_pointer = True
+                    declbuf.append(tok)
 
-        firsttok = find_statement_beginning(tokens, self.start_index)
-        fulltype = text[firsttok.extent.start.offset:subtoks[0].extent.start.offset] + typename
+                else:
+                    declbuf.append(tok)
 
-        origtext = original_text_from_tokens(subtoks[:-1], text)
-        typeval = 'NULL' if self.is_pointer else default_value_for_type(typename)
-        newtext = "%s = %s;" % (origtext, typeval)
+            else:
+                declbuf.append(tok)
 
-        ret = CodeChunkReplacement(self.start_index,
-                                   subtoks[0].extent.start.offset,
-                                   subtoks[-1].extent.end.offset,
+            if tok.spelling == '=':
+                initialized = True
+                assignments += 1
+
+        if not decls or not decls[0]:
+            return None
+
+        if assignments == len(decls):
+            # All values are already initialized
+            return None
+
+        newdecls = []
+        for initialized, is_pointer, decl in decls:
+            # Check if already initialized
+            newtext = original_text_from_tokens(decl, text)
+
+            if not initialized:
+                if is_pointer:
+                    value = 'NULL'
+                else:
+                    value = default_value_for_type(tokens[index].spelling)
+
+                newtext += " = %s" % value
+
+            newdecls.append(newtext)
+
+        newtext = original_text_from_tokens(tokens[startindex:varindex], text) + ' '
+        newtext += ', '.join(newdecls) + ";"
+
+        ret = CodeChunkReplacement(index,
+                                   tokens[startindex].extent.start.offset,
+                                   tokens[endindex].extent.end.offset,
                                    newtext)
         return ret
 
     def consume_token(self, rewriter, index, tokens, text):
-        token = tokens[index]
-        ret = None
+        tok = tokens[index]
 
-        if self.state == self.STATE_START:
-            self.tokens = 0
-            self.is_pointer = False
+        if (tok.kind == TokenKind.KEYWORD) and (tok.spelling in builtin_type_names):
+            if tok.cursor.kind == CursorKind.VAR_DECL:
+                # Find statement beginning
+                startindex = find_statement_beginning_index(tokens, index)
 
-            if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
-                self.start_index = index
-                self.state = self.STATE_ID
+                # Find statement end
+                endindex = find_next_toplevel_semicolon_index(tokens, index)
 
-        elif self.state == self.STATE_ID:
-            if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
-                pass
+                return self.rewrite_var_decl(rewriter, index, startindex, endindex, tokens, text)
 
-            elif token.kind == TokenKind.IDENTIFIER:
-                self.state = self.STATE_END
-
-            elif token.kind == TokenKind.PUNCTUATION:
-                if token.spelling == "*":
-                    self.is_pointer = True
-                else:
-                    self.state = self.STATE_START
-
-            elif token.kind == TokenKind.KEYWORD:
-                if token.spelling not in ['const', 'volatile']:
-                    self.state = self.STATE_START
-            else:
-                self.state = self.STATE_START
-
-        elif self.state == self.STATE_END:
-            self.state = self.STATE_START
-            if token.kind == TokenKind.PUNCTUATION:
-                if token.spelling == ';':
-                    self.end_index = index
-                    self.state = self.STATE_START
-                    return self.replacement_code(tokens, text)
-
-                elif token.spelling in ['=', ',']:
-                    self.state = self.STATE_START
-
-        if (self.state != self.STATE_START):
-            self.tokens += 1
-
-        return ret
+        return None
 
 
 class OneDeclarationPerLine(CodeRewriteRule):
@@ -390,7 +396,8 @@ class OneDeclarationPerLine(CodeRewriteRule):
             if subtoks[1].kind == TokenKind.KEYWORD:
                 typename = '%s %s' % (typename, subtoks[1].spelling)
 
-        firsttok = find_statement_beginning(tokens, self.start_index)
+        firsttok_index = find_statement_beginning_index(tokens, self.start_index)
+        firsttok = tokens[firsttok_index]
         fulltype = text[firsttok.extent.start.offset:subtoks[0].extent.start.offset] + typename
 
         # Group tokens between commas, starting from the first ID
