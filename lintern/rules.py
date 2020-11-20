@@ -1,10 +1,11 @@
 from clang.cindex import TokenKind, CursorKind
 
-from lintern.cfile import (
-        CodeRewriteRule, CodeChunkReplacement, original_text_from_tokens,
-        find_statement_beginning, builtin_signed_type_names, builtin_unsigned_type_names,
-        builtin_type_names, default_value_for_type, get_line_indent, get_configured_indent,
-        find_last_matching_rparen, find_last_matching_rbrace, find_next_toplevel_semicolon_index
+from lintern.cfile import CodeRewriteRule, CodeChunkReplacement
+from lintern.utils import (
+        original_text_from_tokens, find_statement_beginning, builtin_signed_type_names,
+        builtin_unsigned_type_names, builtin_type_names, default_value_for_type,
+        get_line_indent, get_configured_indent, find_last_matching_rparen,
+        find_last_matching_rbrace, find_next_toplevel_semicolon_index
 )
 
 
