@@ -21,7 +21,8 @@ class BracesAroundCodeBlocks(CodeRewriteRule):
         if (check1())
            func1();
         else if (check2())
-            func2();
+            if (check3())
+                func2();
 
     Becomes:
 
@@ -33,7 +34,10 @@ class BracesAroundCodeBlocks(CodeRewriteRule):
         }
         else if (check2())
         {
-            func2();
+            if (check3())
+            {
+                func2();
+            }
         }
     """
     def __init__(self):
@@ -208,11 +212,21 @@ class PrototypeFunctionDeclarations(CodeRewriteRule):
 
         void function();
 
+        void function()
+        {
+            return;
+        }
+
     Becomes:
 
     ::
 
         void function(void);
+
+        void function(void)
+        {
+            return;
+        }
     """
     def __init__(self):
         super(PrototypeFunctionDeclarations, self).__init__()
@@ -258,7 +272,7 @@ class InitializeCanonicals(CodeRewriteRule):
 
     ::
 
-        volatile float x;
+        volatile float x, *X;
         static const bool y;
         short *z;
 
@@ -266,7 +280,7 @@ class InitializeCanonicals(CodeRewriteRule):
 
     ::
 
-        volatile float x = 0.0f;
+        volatile float x = 0.0f, *X = NULL;
         static const bool y = false;
         short *z = NULL;
     """
