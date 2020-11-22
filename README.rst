@@ -1,9 +1,10 @@
 lintern
 -------
 
-Rewrite C code to fix certain things that static analysis checkers often complain
-about. Not particularly fancy, just takes care of some of the more mindless things,
-that's all.
+Python-based tool which uses ``libclang`` to rewrite C code to fix certain things
+that static analysis checkers often complain about. Not particularly fancy, just
+takes care of some of the more mindless things that are annoying for humans to
+waste their time on, that's all.
 
 You should probably use ``clang-tidy`` instead.
 
