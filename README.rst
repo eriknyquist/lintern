@@ -29,36 +29,35 @@ BracesAroundCodeBlocks
 ######################
 
 
-    Possible values: ``true``, ``false``
+This rule rewrites code blocks following if/else, for, while and do/while statements,
+ensuring that they are surrounded by braces.
 
-    This rule rewrites code blocks following if/else, for, while and do/while statements,
-    ensuring that they are surrounded by braces.
+For example:
 
-    For example:
+::
 
-    ::
+    if (check1())
+       func1();
+    else if (check2())
+        if (check3())
+            func2();
 
-        if (check1())
-           func1();
-        else if (check2())
-            if (check3())
-                func2();
+Becomes:
 
-    Becomes:
+::
 
-    ::
-
-        if (check1())
+    if (check1())
+    {
+       func1();
+    }
+    else if (check2())
+    {
+        if (check3())
         {
-           func1();
+            func2();
         }
-        else if (check2())
-        {
-            if (check3())
-            {
-                func2();
-            }
-        }
+    }
+
     
 
 
@@ -66,30 +65,31 @@ PrototypeFunctionDeclarations
 #############################
 
 
-    This rule rewrites function declarations and implementations with no function
-    parameters, to ensure 'void' is used in place of function parameters.
+This rule rewrites function declarations and implementations with no function
+parameters, to ensure 'void' is used in place of function parameters.
 
-    For example:
+For example:
 
-    ::
+::
 
-        void function();
+    void function();
 
-        void function()
-        {
-            return;
-        }
+    void function()
+    {
+        return;
+    }
 
-    Becomes:
+Becomes:
 
-    ::
+::
 
-        void function(void);
+    void function(void);
 
-        void function(void)
-        {
-            return;
-        }
+    void function(void)
+    {
+        return;
+    }
+
     
 
 
@@ -97,23 +97,24 @@ OneDeclarationPerLine
 #####################
 
 
-    This rule rewrites lines that declare & initialize multiple values in a single
-    statement, to separate each declaration + initialization on its own line and
-    statement.
+This rule rewrites lines that declare & initialize multiple values in a single
+statement, to separate each declaration + initialization on its own line and
+statement.
 
-    For example:
+For example:
 
-    ::
+::
 
-       static const int a = 2, *b = NULL, **c = NULL;
+   static const int a = 2, *b = NULL, **c = NULL;
 
-    Becomes:
+Becomes:
 
-    ::
+::
 
-        static const int a = 2;
-        static const int *b = NULL;
-        static const int **c = NULL;
+    static const int a = 2;
+    static const int *b = NULL;
+    static const int **c = NULL;
+
     
 
 
@@ -121,24 +122,60 @@ InitializeCanonicals
 ####################
 
 
-    This rule rewrites declarations of canonical data types that have no initial
-    value, and adds a sane initial value.
+This rule rewrites declarations of canonical data types that have no initial
+value, and adds a sane initial value.
 
-    For example:
+For example:
 
-    ::
+::
 
-        volatile float x, *X;
-        static const bool y;
-        short *z;
+    volatile float x, *X;
+    static const bool y;
+    short *z;
 
-    Becomes:
+Becomes:
 
-    ::
+::
 
-        volatile float x = 0.0f, *X = NULL;
-        static const bool y = false;
-        short *z = NULL;
+    volatile float x = 0.0f, *X = NULL;
+    static const bool y = false;
+    short *z = NULL;
+
     
 
 
+TerminateElseIfWithElse
+#######################
+
+
+Rewrites else-if chains to ensure they are terminated with an 'else' clause.
+
+For example:
+
+::
+
+    if (check1())
+    {
+        func1();
+    }
+    else if (check2())
+    {
+        func2();
+    }
+
+Becomes:
+
+::
+
+    if (check1())
+    {
+        func1();
+    }
+    else if (check2())
+    {
+        func2();
+    }
+    else
+    {
+        ;
+    }

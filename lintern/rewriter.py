@@ -6,7 +6,8 @@ rewrite_rules = [
     rules.BracesAroundCodeBlocks(),
     rules.PrototypeFunctionDeclarations(),
     rules.OneDeclarationPerLine(),
-    rules.InitializeCanonicals()
+    rules.InitializeCanonicals(),
+    rules.TerminateElseIfWithElse()
 ]
 
 class CodeRewriter(object):

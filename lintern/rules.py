@@ -9,48 +9,50 @@ from lintern.utils import (
 )
 
 
+def add_semicolon_if_required(index, tokens, subtoks):
+    if (subtoks[-1].kind != TokenKind.PUNCTUATION) or (subtoks[-1].spelling != ';'):
+        if (index + len(subtoks)) < len(tokens):
+            nexttok = tokens[index + len(subtoks)]
+            if (nexttok.kind == TokenKind.PUNCTUATION) and (nexttok.spelling == ';'):
+                subtoks.append(nexttok)
+
+
 class BracesAroundCodeBlocks(CodeRewriteRule):
     """
-    This rule rewrites code blocks following if/else, for, while and do/while statements,
-    ensuring that they are surrounded by braces.
+This rule rewrites code blocks following if/else, for, while and do/while statements,
+ensuring that they are surrounded by braces.
 
-    For example:
+For example:
 
-    ::
+::
 
-        if (check1())
-           func1();
-        else if (check2())
-            if (check3())
-                func2();
+    if (check1())
+       func1();
+    else if (check2())
+        if (check3())
+            func2();
 
-    Becomes:
+Becomes:
 
-    ::
+::
 
-        if (check1())
+    if (check1())
+    {
+       func1();
+    }
+    else if (check2())
+    {
+        if (check3())
         {
-           func1();
+            func2();
         }
-        else if (check2())
-        {
-            if (check3())
-            {
-                func2();
-            }
-        }
+    }
+
     """
     def __init__(self):
         super(BracesAroundCodeBlocks, self).__init__()
         self.tokens = 0
         self.last_cursor_kind = None
-
-    def _add_semicolon_if_required(self, index, tokens, subtoks):
-        if (subtoks[-1].kind != TokenKind.PUNCTUATION) or (subtoks[-1].spelling != ';'):
-            if (index + len(subtoks)) < len(tokens):
-                nexttok = tokens[index + len(subtoks)]
-                if (nexttok.kind == TokenKind.PUNCTUATION) and (nexttok.spelling == ';'):
-                    subtoks.append(nexttok)
 
     def _code_block_after_conditional(self, rewriter, index, tokens, text):
         # Find the closing paren. of conditional statement
@@ -126,12 +128,12 @@ class BracesAroundCodeBlocks(CodeRewriteRule):
             return None
 
         toks = list(tokens[index].cursor.get_tokens())
-        self._add_semicolon_if_required(index, tokens, toks)
+        add_semicolon_if_required(index, tokens, toks)
         return self._code_block_after_conditional(rewriter, index, toks, text)
 
     def rewrite_for_stmt(self, rewriter, index, tokens, text):
         toks = list(tokens[index].cursor.get_tokens())
-        self._add_semicolon_if_required(index, tokens, toks)
+        add_semicolon_if_required(index, tokens, toks)
         return self._code_block_after_conditional(rewriter, index, toks, text)
 
     def check_rewrite_ifelse_stmt(self, rewriter, index, tokens, text):
@@ -203,30 +205,31 @@ class BracesAroundCodeBlocks(CodeRewriteRule):
 
 class PrototypeFunctionDeclarations(CodeRewriteRule):
     """
-    This rule rewrites function declarations and implementations with no function
-    parameters, to ensure 'void' is used in place of function parameters.
+This rule rewrites function declarations and implementations with no function
+parameters, to ensure 'void' is used in place of function parameters.
 
-    For example:
+For example:
 
-    ::
+::
 
-        void function();
+    void function();
 
-        void function()
-        {
-            return;
-        }
+    void function()
+    {
+        return;
+    }
 
-    Becomes:
+Becomes:
 
-    ::
+::
 
-        void function(void);
+    void function(void);
 
-        void function(void)
-        {
-            return;
-        }
+    void function(void)
+    {
+        return;
+    }
+
     """
     def __init__(self):
         super(PrototypeFunctionDeclarations, self).__init__()
@@ -265,24 +268,25 @@ class PrototypeFunctionDeclarations(CodeRewriteRule):
 
 class InitializeCanonicals(CodeRewriteRule):
     """
-    This rule rewrites declarations of canonical data types that have no initial
-    value, and adds a sane initial value.
+This rule rewrites declarations of canonical data types that have no initial
+value, and adds a sane initial value.
 
-    For example:
+For example:
 
-    ::
+::
 
-        volatile float x, *X;
-        static const bool y;
-        short *z;
+    volatile float x, *X;
+    static const bool y;
+    short *z;
 
-    Becomes:
+Becomes:
 
-    ::
+::
 
-        volatile float x = 0.0f, *X = NULL;
-        static const bool y = false;
-        short *z = NULL;
+    volatile float x = 0.0f, *X = NULL;
+    static const bool y = false;
+    short *z = NULL;
+
     """
     def rewrite_var_decl(self, rewriter, index, startindex, endindex, tokens, text):
         varindex = index + 1
@@ -370,23 +374,24 @@ class InitializeCanonicals(CodeRewriteRule):
 
 class OneDeclarationPerLine(CodeRewriteRule):
     """
-    This rule rewrites lines that declare & initialize multiple values in a single
-    statement, to separate each declaration + initialization on its own line and
-    statement.
+This rule rewrites lines that declare & initialize multiple values in a single
+statement, to separate each declaration + initialization on its own line and
+statement.
 
-    For example:
+For example:
 
-    ::
+::
 
-       static const int a = 2, *b = NULL, **c = NULL;
+   static const int a = 2, *b = NULL, **c = NULL;
 
-    Becomes:
+Becomes:
 
-    ::
+::
 
-        static const int a = 2;
-        static const int *b = NULL;
-        static const int **c = NULL;
+    static const int a = 2;
+    static const int *b = NULL;
+    static const int **c = NULL;
+
     """
     STATE_START = 0
     STATE_ID = 1
@@ -492,3 +497,84 @@ class OneDeclarationPerLine(CodeRewriteRule):
             self.tokens += 1
 
         return ret
+
+
+class TerminateElseIfWithElse(CodeRewriteRule):
+    """
+Rewrites else-if chains to ensure they are terminated with an 'else' clause.
+
+For example:
+
+::
+
+    if (check1())
+    {
+        func1();
+    }
+    else if (check2())
+    {
+        func2();
+    }
+
+Becomes:
+
+::
+
+    if (check1())
+    {
+        func1();
+    }
+    else if (check2())
+    {
+        func2();
+    }
+    else
+    {
+        ;
+    }
+
+    """
+
+    def rewrite_if_stmt(self, rewriter, index, tokens, text):
+        # Check if there are else-if clauses but a missing else clause
+        has_else = False
+        has_elseif = False
+
+        for i in range(len(tokens)):
+            t = tokens[i]
+            if t.kind == TokenKind.KEYWORD:
+                if t.spelling == 'else':
+                    if ((i < (len(tokens) - 1)) and
+                        (tokens[i + 1].kind == TokenKind.KEYWORD) and
+                        (tokens[i + 1].spelling == 'if')):
+                        has_elseif = True
+                    else:
+                        has_else = True
+
+        # If statement already has an 'else' clause, or if statement
+        # has no else-if clause, no rewrite needed.
+        if has_else or (not has_elseif):
+            return None
+
+        # No else clause, we need to add one.
+        origindent = get_line_indent(tokens[0], text)
+        indent = get_configured_indent(rewriter.config)
+
+        newtext = original_text_from_tokens(tokens, text)
+        newtext += "\n" + origindent + "else"
+        newtext += "\n" + origindent + "{"
+        newtext += "\n" + origindent + indent + ";"
+        newtext += "\n" + origindent + "}"
+
+        ret = CodeChunkReplacement(index,
+                                   tokens[0].extent.start.offset,
+                                   tokens[-1].extent.end.offset,
+                                   newtext)
+
+        return ret
+
+    def consume_token(self, rewriter, index, tokens, text):
+        if tokens[index].cursor.kind == CursorKind.IF_STMT:
+            toks = list(tokens[index].cursor.get_tokens())
+            add_semicolon_if_required(index, tokens, toks)
+            return self.rewrite_if_stmt(rewriter, index, toks, text)
