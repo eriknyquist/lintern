@@ -114,7 +114,7 @@ def find_statement_beginning_index(tokenlist, index):
 
         i -= 1
 
-    return None
+    return index
 
 
 def original_text_from_tokens(tokenlist, text):
