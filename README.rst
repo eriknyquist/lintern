@@ -8,6 +8,19 @@ waste their time on, that's all.
 
 You should probably use ``clang-tidy`` instead.
 
+Source code formatting / whitespace
+===================================
+
+Lintern makes a reasonable effort to indent new lines in a way consistent with
+surrounding lines, however there are not really any features for controlling
+whitespace. Lintern is all about modifying the stream of tokens, and doesn't really
+care much about whitespace.
+
+If you need to enforce a certain coding/whitespace style, it is recommended to run
+lintern first, and then run a tool focused on whitespace (such as ``clang-format``)
+as a final step.
+
+
 Configuration file
 ------------------
 
@@ -179,3 +192,7 @@ Becomes:
     {
         ;
     }
+
+    
+
+
