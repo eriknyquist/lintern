@@ -160,9 +160,6 @@ Becomes:
                     if end_index is None:
                         return None
 
-                    #import pdb
-                    #pdb.set_trace()
-
                     toks = toks[:end_index]
 
                     origindent = get_line_indent(toks[0], text)
@@ -240,21 +237,26 @@ Becomes:
         if token.cursor.kind == CursorKind.FUNCTION_DECL:
             decl_toks = [t for t in token.cursor.get_tokens()]
 
-            end_index = None
+            # Find opening paren of param declarations
+            lparen_index = None
             for i in range(len(decl_toks)):
                 t = decl_toks[i]
-                if (t.kind == TokenKind.PUNCTUATION) and (t.spelling == ')'):
-                    end_index = i + 1
+                if (t.kind == TokenKind.PUNCTUATION) and (t.spelling == '('):
+                    lparen_index = i
+                    break
 
-            if end_index is None:
+            if lparen_index is None:
                 return
 
-            decl_toks = decl_toks[:end_index]
-            if decl_toks[-2].kind != TokenKind.PUNCTUATION:
+            if lparen_index >= len(decl_toks):
                 return None
 
-            if decl_toks[-2].spelling != "(":
+            if ((decl_toks[lparen_index + 1].kind != TokenKind.PUNCTUATION) or
+                (decl_toks[lparen_index + 1].spelling != ')')):
+                # Already has something in the parameter declaration
                 return None
+
+            decl_toks = decl_toks[:lparen_index + 2]
 
             newtext = original_text_from_tokens(decl_toks[:-1], text)
             newtext += "void)"
