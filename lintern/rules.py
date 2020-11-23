@@ -665,8 +665,7 @@ Becomes:
         # Get indent from current first line of function body
         origindent = get_line_indent(tokens[lbrace_index + 1], text)
 
-        newtext = "\n" + origindent
-        newtext += ("\n" + origindent).join(["(void) %s;" % n for n in not_used])
+        newtext = ("\n" + origindent).join(["(void) %s;" % n for n in not_used])
         newtext += "\n"
 
         ret = CodeChunkReplacement(index,
