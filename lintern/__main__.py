@@ -1,12 +1,11 @@
-from lintern.rewriter import rewrite_rules
-
-from lintern.rewriter import CodeRewriter
-
-import yaml
-
 import argparse
 import sys
 import os
+
+from lintern.rewriter import rewrite_rules
+from lintern.rewriter import CodeRewriter
+
+import yaml
 
 
 def get_default_config_data():

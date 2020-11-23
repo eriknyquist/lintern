@@ -300,18 +300,39 @@ Becomes:
         toks = tokens[startindex:endindex + 1]
         decls = []
         declbuf = []
-        assignments = 0
+        inits_needed = 0
+        bdepth = 0
+        pdepth = 0
         is_pointer = False
-        initialized = False
+        needs_init = True
 
         for i in range(len(decls_only)):
             tok = decls_only[i]
             if tok.kind == TokenKind.PUNCTUATION:
-                if tok.spelling in [',', ';']:
-                    decls.append((initialized, is_pointer, declbuf))
+                if (pdepth == 0) and (bdepth == 0) and (tok.spelling in [',', ';']):
+                    if needs_init:
+                        inits_needed += 1
+
+                    decls.append((needs_init, is_pointer, declbuf))
                     is_pointer = False
-                    initialized = False
+                    needs_init = True
                     declbuf = []
+
+                elif tok.spelling == '(':
+                    pdepth += 1
+                    declbuf.append(tok)
+
+                elif tok.spelling == ')':
+                    pdepth -= 1
+                    declbuf.append(tok)
+
+                elif tok.spelling == '{':
+                    bdepth += 1
+                    declbuf.append(tok)
+
+                elif tok.spelling == '}':
+                    bdepth -= 1
+                    declbuf.append(tok)
 
                 elif tok.spelling == '*':
                     is_pointer = True
@@ -323,23 +344,22 @@ Becomes:
             else:
                 declbuf.append(tok)
 
-            if tok.spelling == '=':
-                initialized = True
-                assignments += 1
+            if tok.spelling in ['=', '[']:
+                needs_init = False
 
         if not decls or not decls[0]:
             return None
 
-        if assignments == len(decls):
+        if inits_needed == 0:
             # All values are already initialized
             return None
 
         newdecls = []
-        for initialized, is_pointer, decl in decls:
+        for needs_init, is_pointer, decl in decls:
             # Check if already initialized
             newtext = original_text_from_tokens(decl, text)
 
-            if not initialized:
+            if needs_init:
                 if is_pointer:
                     value = 'NULL'
                 else:
@@ -405,6 +425,7 @@ Becomes:
         self.state = self.STATE_START
         self.commas = 0
         self.tokens = 0
+        self.depth = 0
 
     def tokens_buffered(self):
         return self.tokens
@@ -492,7 +513,11 @@ Becomes:
                     self.state = self.STATE_START
                     self.commas = 0
 
-                elif token.spelling == ',':
+                elif token.spelling == '(':
+                    self.depth += 1
+                elif token.spelling == ')':
+                    self.depth -= 1
+                elif (self.depth == 0) and (token.spelling == ','):
                     self.commas += 1
 
         if (self.state != self.STATE_START):
