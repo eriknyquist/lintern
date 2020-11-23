@@ -7,7 +7,8 @@ rewrite_rules = [
     rules.PrototypeFunctionDeclarations(),
     rules.OneDeclarationPerLine(),
     rules.InitializeCanonicals(),
-    rules.TerminateElseIfWithElse()
+    rules.TerminateElseIfWithElse(),
+    rules.ExplicitUnusedFunctionParams()
 ]
 
 class CodeRewriter(object):

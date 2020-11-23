@@ -605,3 +605,85 @@ Becomes:
             toks = list(tokens[index].cursor.get_tokens())
             add_semicolon_if_required(index, tokens, toks)
             return self.rewrite_if_stmt(rewriter, index, toks, text)
+
+
+class ExplicitUnusedFunctionParams(CodeRewriteRule):
+    """
+This rule rewrites function implementations to explicitly mark unused function
+parameters with "void".
+
+For example:
+
+::
+
+    int func(int a, int b)
+    {
+        return b + 2;
+    }
+
+Becomes:
+
+::
+
+    int func(int a, int b)
+    {
+        (void) a;
+
+        return b + 2;
+    }
+    """
+
+    def rewrite_func_impl(self, paramnames, rewriter, index, tokens, text):
+        # Find opening brace
+        lbrace_index = None
+        for i in range(len(tokens)):
+            tok = tokens[i]
+            if (tok.kind == TokenKind.PUNCTUATION) and (tok.spelling == '{'):
+                lbrace_index = i
+                break
+
+        if lbrace_index is None:
+            return None
+
+        # Now, count no. of references of each param within the function body
+        refs = {n: 0 for n in paramnames}
+        for i in range(lbrace_index, len(tokens), 1):
+            tok = tokens[i]
+            if tok.kind == TokenKind.IDENTIFIER:
+                if tok.spelling in refs:
+                    refs[tok.spelling] += 1
+
+        not_used = []
+        for n in refs:
+            if refs[n] == 0:
+                not_used.append(n)
+
+        if not not_used:
+            # All params are referenced
+            return None
+
+        # Get indent from current first line of function body
+        origindent = get_line_indent(tokens[lbrace_index + 1], text)
+
+        newtext = "\n" + origindent
+        newtext += ("\n" + origindent).join(["(void) %s;" % n for n in not_used])
+        newtext += "\n"
+
+        ret = CodeChunkReplacement(index,
+                                   tokens[lbrace_index + 1].extent.start.offset,
+                                   tokens[lbrace_index].extent.end.offset,
+                                   newtext)
+
+        return ret
+
+    def consume_token(self, rewriter, index, tokens, text):
+        if tokens[index].cursor.kind == CursorKind.FUNCTION_DECL:
+            paramnames = [a.displayname for a in list(tokens[index].cursor.get_arguments())]
+            if not paramnames:
+                # No function params
+                return None
+
+            toks = list(tokens[index].cursor.get_tokens())
+            return self.rewrite_func_impl(paramnames, rewriter, index, toks, text)
+
+        return None

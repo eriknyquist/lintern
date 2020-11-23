@@ -196,3 +196,32 @@ Becomes:
     
 
 
+ExplicitUnusedFunctionParams
+############################
+
+
+This rule rewrites function implementations to explicitly mark unused function
+parameters with "void".
+
+For example:
+
+::
+
+    int func(int a, int b)
+    {
+        return b + 2;
+    }
+
+Becomes:
+
+::
+
+    int func(int a, int b)
+    {
+        (void) a;
+
+        return b + 2;
+    }
+    
+
+
