@@ -199,6 +199,9 @@ Becomes:
         self.last_cursor_kind = token.cursor.kind
         return ret
 
+    def reset(self):
+        self.last_cursor_kind = None
+
 
 class PrototypeFunctionDeclarations(CodeRewriteRule):
     """
@@ -290,10 +293,23 @@ Becomes:
     short *z = NULL;
 
     """
+    def __init__(self):
+        super(InitializeCanonicals, self).__init__()
+        self.depth = 0
+
     def rewrite_var_decl(self, rewriter, index, startindex, endindex, tokens, text):
-        varindex = index + 1
-        if tokens[index].spelling == 'unsigned':
-            if tokens[index + 1].spelling in builtin_type_names:
+        typeindex = None
+        for i in range(startindex, endindex, 1):
+            if tokens[i].spelling in builtin_type_names:
+                typeindex = i
+                break
+
+        if typeindex is None:
+            return None
+
+        varindex = typeindex + 1
+        if tokens[typeindex].spelling == 'unsigned':
+            if tokens[varindex].spelling in builtin_type_names:
                 varindex += 1
 
         decls_only = tokens[varindex:endindex + 1]
@@ -363,7 +379,7 @@ Becomes:
                 if is_pointer:
                     value = 'NULL'
                 else:
-                    value = default_value_for_type(tokens[index].spelling)
+                    value = default_value_for_type(tokens[typeindex].spelling)
 
                 newtext += " = %s" % value
 
@@ -376,22 +392,36 @@ Becomes:
                                    tokens[startindex].extent.start.offset,
                                    tokens[endindex].extent.end.offset,
                                    newtext)
+
         return ret
+
+    def reset(self):
+        self.depth = 0
 
     def consume_token(self, rewriter, index, tokens, text):
         tok = tokens[index]
 
-        if (tok.kind == TokenKind.KEYWORD) and (tok.spelling in builtin_type_names):
-            if tok.cursor.kind == CursorKind.VAR_DECL:
-                # Find statement beginning
-                startindex = find_statement_beginning_index(tokens, index)
+        if tok.kind == TokenKind.PUNCTUATION:
+            if tok.spelling == '(':
+                self.depth += 1
+            elif tok.spelling == ')':
+                self.depth -= 1
 
-                # Find statement end
-                endindex = find_next_toplevel_semicolon_index(tokens, index)
+            return None
 
-                return self.rewrite_var_decl(rewriter, index, startindex, endindex, tokens, text)
+        elif (tok.cursor.kind != CursorKind.VAR_DECL) or (self.depth != 0):
+            return None
 
-        return None
+        #print(tok.cursor.kind, ' '.join([t.spelling for t in tok.cursor.get_tokens()]))
+        # Find statement beginning
+        startindex = find_statement_beginning_index(tokens, index)
+
+        # Find statement end
+        endindex = find_next_toplevel_semicolon_index(tokens, index)
+        if not endindex:
+            return None
+
+        return self.rewrite_var_decl(rewriter, index, startindex, endindex, tokens, text)
 
 
 class OneDeclarationPerLine(CodeRewriteRule):
@@ -465,7 +495,12 @@ Becomes:
                                    firsttok.extent.start.offset,
                                    subtoks[-1].extent.end.offset,
                                    newtext)
+
         return ret
+
+    def reset(self):
+        self.depth = 0
+        self.commas = 0
 
     def consume_token(self, rewriter, index, tokens, text):
         token = tokens[index]
@@ -475,7 +510,7 @@ Becomes:
             self.tokens = 0
 
             if (token.kind == TokenKind.KEYWORD) and (token.spelling in builtin_type_names):
-                if token.cursor.kind != CursorKind.PARM_DECL:
+                if token.cursor.kind not in [CursorKind.PARM_DECL, CursorKind.FUNCTION_DECL]:
                     self.start_index = index
                     self.state = self.STATE_ID
 
@@ -663,10 +698,19 @@ Becomes:
             return None
 
         # Get indent from current first line of function body
-        origindent = get_line_indent(tokens[lbrace_index + 1], text)
+        indent = get_line_indent(tokens[lbrace_index + 1], text)
+        bodyempty = (indent == '')
 
-        newtext = ("\n" + origindent).join(["(void) %s;" % n for n in not_used])
-        newtext += "\n"
+        newtext = ""
+
+        if bodyempty:
+            indent = get_configured_indent(rewriter.config)
+            newtext += indent
+
+        newtext += ("\n" + indent).join(["(void) %s;" % n for n in not_used])
+
+        if not bodyempty:
+            newtext += "\n"
 
         ret = CodeChunkReplacement(index,
                                    tokens[lbrace_index + 1].extent.start.offset,

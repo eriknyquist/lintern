@@ -21,6 +21,9 @@ class CodeRewriteRule(object):
     def consume_token(self, rewriter, index, token, text):
         raise NotImplementedError()
 
+    def reset(self):
+        pass
+
 
 class CFile(object):
     def __init__(self, filename):

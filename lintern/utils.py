@@ -118,6 +118,9 @@ def find_statement_beginning_index(tokenlist, index):
 
 
 def original_text_from_tokens(tokenlist, text):
+    if not tokenlist:
+        return ''
+
     start = tokenlist[0].extent.start.offset
     end = tokenlist[-1].extent.end.offset
     return text[start:end]

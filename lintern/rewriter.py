@@ -29,6 +29,7 @@ class CodeRewriter(object):
         restart = False
 
         for r in self.rules:
+            r.reset()
             i = 0
             while i < len(tokens):
                 ret = r.consume_token(self, i, tokens, cf.text)
@@ -44,6 +45,7 @@ class CodeRewriter(object):
                 newtext = cf.text[:ret.start] + ret.replacement_text + cf.text[ret.end:]
                 tokens = cf.tokens(text=newtext)
                 i = ret.start_token_index
+                r.reset()
 
         return cf.text
 
