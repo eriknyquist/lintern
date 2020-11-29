@@ -2,8 +2,8 @@ import argparse
 import sys
 import os
 
-from lintern.rewriter import rewrite_rules
-from lintern.rewriter import CodeRewriter
+from lintern.rewriter import CodeRewriter, rewrite_rules
+from lintern.cfile import add_required_include_paths
 
 import yaml
 
@@ -37,6 +37,12 @@ def main():
                         "modified files to stdout.")
     parser.add_argument('-g', '--generate-config', action='store_true', dest='gen_config',
                         help="Generate default configuration data, and print to stdout.")
+    parser.add_argument('-e', '--ignore-errors', action='store_true', dest='ignore_errors',
+                        help="Continue trying to parse & rewrite files, even if a parse"
+                        "error is encountered. Default is to bail out when any parse errors"
+                        "are encountered in a C file.")
+    parser.add_argument('-d', '--add-include-dir', action='append', dest='include_dirs',
+                        help="Add an extra include directory to pass to libclang")
     parser.add_argument('filename', nargs='*')
     args = parser.parse_args()
 
@@ -70,7 +76,13 @@ def main():
         print("configuration file '%s' not found, using default options." % args.config_file)
         cfg_data = get_default_config_data()
 
+    extra_dirs = [] if args.include_dirs is None else args.include_dirs
+    add_required_include_paths(extra_include_paths=extra_dirs)
+
     r = CodeRewriter(args, cfg_data)
+    if r.files is None:
+        return 1
+
     r.rewrite()
     return 0
 

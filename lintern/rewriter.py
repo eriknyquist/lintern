@@ -14,8 +14,18 @@ rewrite_rules = [
 class CodeRewriter(object):
     def __init__(self, args, config_data):
         self.config = args
-        self.files = [CFile(f) for f in args.filename]
         self.rules = []
+        self.files = []
+
+        for f in args.filename:
+            fobj = CFile(f, ignore_errors=args.ignore_errors)
+            if fobj.parsed is None:
+                # Parse failed
+                self.files = None
+                return
+
+            # Parse successful
+            self.files.append(fobj)
 
         # Build list of rules that are enabled in the config file
         for r in rewrite_rules:
@@ -25,6 +35,9 @@ class CodeRewriter(object):
 
     def _rewrite_file(self, cf):
         tokens = cf.tokens()
+        if not tokens:
+            return None
+
         i = 0
         restart = False
 
@@ -44,6 +57,9 @@ class CodeRewriter(object):
                 # loop starting from the first token of our new replacement code.
                 newtext = cf.text[:ret.start] + ret.replacement_text + cf.text[ret.end:]
                 tokens = cf.tokens(text=newtext)
+                if tokens is None:
+                    return None
+
                 i = ret.start_token_index
                 r.reset()
 
@@ -52,6 +68,9 @@ class CodeRewriter(object):
     def rewrite(self):
         for f in self.files:
             new_file_content = self._rewrite_file(f)
+            if new_file_content is None:
+                return
+
             if self.config.in_place:
                 with open(f.filename, 'w') as fh:
                     fh.write(new_file_content)

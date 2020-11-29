@@ -463,10 +463,12 @@ Becomes:
     def replacement_code(self, tokens, text):
         subtoks = tokens[self.start_index:self.end_index + 1]
         typename = subtoks[0].spelling
+        typeend = 1
 
         if typename == 'unsigned':
             if subtoks[1].kind == TokenKind.KEYWORD:
                 typename = '%s %s' % (typename, subtoks[1].spelling)
+                typeend = 2
 
         firsttok_index = find_statement_beginning_index(tokens, self.start_index)
         firsttok = tokens[firsttok_index]
@@ -475,7 +477,7 @@ Becomes:
         # Group tokens between commas, starting from the first ID
         groups = []
         buf = []
-        for i in range(1, len(subtoks), 1): # First ID is index 1
+        for i in range(typeend, len(subtoks), 1): # First ID is index 1
             tok = subtoks[i]
             if (tok.kind == TokenKind.PUNCTUATION) and (tok.spelling in [',', ';']):
                 groups.append(buf)
